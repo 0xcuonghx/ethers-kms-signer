@@ -1,0 +1,19 @@
+{
+  "name": "ethers-kms-signer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "cuonghx-gutech",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-kms": "^3.523.0",
+    "ethers": "^6.11.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
