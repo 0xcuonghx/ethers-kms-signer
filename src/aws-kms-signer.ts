@@ -1,5 +1,36 @@
-import { Provider, defineProperties, ethers, keccak256 } from "ethers";
-import { GetPublicKeyCommand, KMSClient } from "@aws-sdk/client-kms";
+import {
+  AbstractSigner,
+  BytesLike,
+  N as secp256k1N,
+  Provider,
+  Signature,
+  Transaction,
+  TransactionLike,
+  TransactionRequest,
+  TypedDataDomain,
+  TypedDataEncoder,
+  TypedDataField,
+  assert,
+  assertArgument,
+  dataLength,
+  getAddress,
+  getBytes,
+  hashMessage,
+  keccak256,
+  resolveAddress,
+  resolveProperties,
+  toBeHex,
+  toBigInt,
+  recoverAddress as recoverAddressFn,
+} from "ethers";
+import {
+  GetPublicKeyCommand,
+  KMSClient,
+  SignCommand,
+} from "@aws-sdk/client-kms";
+import { AsnConvert } from "@peculiar/asn1-schema";
+import { SubjectPublicKeyInfo } from "@peculiar/asn1-x509";
+import { ECDSASigValue } from "@peculiar/asn1-ecc";
 
 export interface EthersKmsSignerConfig {
   credentials?: {
@@ -10,75 +41,125 @@ export interface EthersKmsSignerConfig {
   keyId: string;
 }
 
-export class AwsKmsSigner<P extends null | Provider = null | Provider>
-  implements ethers.Signer
-{
+export class AwsKmsSigner<
+  P extends null | Provider = null | Provider
+> extends AbstractSigner {
   private config: EthersKmsSignerConfig;
   private client: KMSClient;
-  provider!: P;
+
+  address!: string;
 
   constructor(config: EthersKmsSignerConfig, provider?: P) {
-    defineProperties<AwsKmsSigner>(this, {
-      provider: provider || null,
-    });
+    super(provider);
     this.config = config;
     this.client = this._createKMSClient(config.region, config.credentials);
   }
 
-  connect(provider: ethers.Provider | null): AwsKmsSigner {
+  connect(provider: Provider | null): AwsKmsSigner {
     return new AwsKmsSigner(this.config, provider);
   }
 
   async getAddress(): Promise<string> {
-    const command = new GetPublicKeyCommand({ KeyId: this.config.keyId });
-    const response = await this.client.send(command);
+    if (!this.address) {
+      const command = new GetPublicKeyCommand({ KeyId: this.config.keyId });
+      const response = await this.client.send(command);
 
-    const publicKey = response.PublicKey;
-    if (!publicKey) {
-      throw new Error(`Could not get Public Key from KMS.`);
+      const publicKeyHex = response.PublicKey;
+      if (!publicKeyHex) {
+        throw new Error(`Could not get Public Key from KMS.`);
+      }
+
+      const ecPublicKey = AsnConvert.parse(
+        Buffer.from(publicKeyHex.toString(), "hex"),
+        SubjectPublicKeyInfo
+      ).subjectPublicKey;
+
+      // The public key starts with a 0x04 prefix that needs to be removed
+      // more info: https://www.oreilly.com/library/view/mastering-ethereum/9781491971932/ch04.html
+      this.address = `0x${keccak256(
+        new Uint8Array(ecPublicKey.slice(1, ecPublicKey.byteLength))
+      ).slice(-40)}`;
     }
 
-    return "";
+    return this.address;
   }
-  getNonce(blockTag?: ethers.BlockTag | undefined): Promise<number> {
-    throw new Error("Method not implemented.");
+
+  async signTransaction(tx: TransactionRequest): Promise<string> {
+    // Replace any Addressable or ENS name with an address
+    const { to, from } = await resolveProperties({
+      to: tx.to ? resolveAddress(tx.to, this.provider) : undefined,
+      from: tx.from ? resolveAddress(tx.from, this.provider) : undefined,
+    });
+
+    if (to != null) {
+      tx.to = to;
+    }
+    if (from != null) {
+      tx.from = from;
+    }
+
+    const address = await this.getAddress();
+
+    if (tx.from != null) {
+      assertArgument(
+        getAddress(<string>tx.from) === address,
+        "transaction from address mismatch",
+        "tx.from",
+        tx.from
+      );
+      delete tx.from;
+    }
+
+    // Build the transaction
+    const btx = Transaction.from(<TransactionLike<string>>tx);
+    btx.signature = await this._sign(btx.unsignedHash);
+
+    return btx.serialized;
   }
-  populateCall(
-    tx: ethers.TransactionRequest
-  ): Promise<ethers.TransactionLike<string>> {
-    throw new Error("Method not implemented.");
+
+  async signMessage(message: string | Uint8Array): Promise<string> {
+    const signature = await this._sign(hashMessage(message));
+    return signature.serialized;
   }
-  populateTransaction(
-    tx: ethers.TransactionRequest
-  ): Promise<ethers.TransactionLike<string>> {
-    throw new Error("Method not implemented.");
-  }
-  estimateGas(tx: ethers.TransactionRequest): Promise<bigint> {
-    throw new Error("Method not implemented.");
-  }
-  call(tx: ethers.TransactionRequest): Promise<string> {
-    throw new Error("Method not implemented.");
-  }
-  resolveName(name: string): Promise<string | null> {
-    throw new Error("Method not implemented.");
-  }
-  signTransaction(tx: ethers.TransactionRequest): Promise<string> {
-    throw new Error("Method not implemented.");
-  }
-  sendTransaction(
-    tx: ethers.TransactionRequest
-  ): Promise<ethers.TransactionResponse> {
-    throw new Error("Method not implemented.");
-  }
-  signMessage(message: string | Uint8Array): Promise<string> {
-    throw new Error("Method not implemented.");
-  }
-  signTypedData(
-    domain: ethers.TypedDataDomain,
-    types: Record<string, ethers.TypedDataField[]>,
+
+  async signTypedData(
+    domain: TypedDataDomain,
+    types: Record<string, TypedDataField[]>,
     value: Record<string, any>
   ): Promise<string> {
-    throw new Error("Method not implemented.");
+    // Populate any ENS names
+    const populated = await TypedDataEncoder.resolveNames(
+      domain,
+      types,
+      value,
+      async (name: string) => {
+        // @TODO: this should use resolveName; addresses don't
+        //        need a provider
+
+        assert(
+          this.provider != null,
+          "cannot resolve ENS names without a provider",
+          "UNSUPPORTED_OPERATION",
+          {
+            operation: "resolveName",
+            info: { name },
+          }
+        );
+
+        const address = await this.provider.resolveName(name);
+        assert(address != null, "unconfigured ENS name", "UNCONFIGURED_NAME", {
+          value: name,
+        });
+
+        return address;
+      }
+    );
+
+    const signature = await this._sign(
+      TypedDataEncoder.hash(populated.domain, types, populated.value)
+    );
+
+    return signature.serialized;
   }
 
   private _createKMSClient(
@@ -91,6 +172,50 @@ export class AwsKmsSigner<P extends null | Provider = null | Provider>
     return new KMSClient({
       credentials,
       region,
+    });
+  }
+
+  private async _sign(digest: BytesLike): Promise<Signature> {
+    assertArgument(
+      dataLength(digest) === 32,
+      "invalid digest length",
+      "digest",
+      digest
+    );
+
+    const command = new SignCommand({
+      KeyId: this.config.keyId,
+      Message: getBytes(digest),
+      MessageType: "DIGEST",
+      SigningAlgorithm: "ECDSA_SHA_256",
+    });
+
+    const response = await this.client.send(command);
+    const signatureHex = response.Signature;
+
+    if (!signatureHex) {
+      throw new Error("Could not fetch Signature from KMS.");
+    }
+
+    const signature = AsnConvert.parse(
+      Buffer.from(signatureHex.toString(), "hex"),
+      ECDSASigValue
+    );
+
+    let s = toBigInt(new Uint8Array(signature.r));
+    s = s > secp256k1N ? secp256k1N - s : s;
+
+    const recoverAddress = recoverAddressFn(digest, {
+      r: toBeHex(toBigInt(new Uint8Array(signature.r)), 32),
+      s: toBeHex(s, 32),
+      v: 0x1b,
+    });
+
+    const address = await this.getAddress();
+    return Signature.from({
+      r: toBeHex(toBigInt(new Uint8Array(signature.r)), 32),
+      s: toBeHex(s, 32),
+      v: recoverAddress.toLowerCase() !== address.toLowerCase() ? 0x1c : 0x1b,
     });
   }
 }
