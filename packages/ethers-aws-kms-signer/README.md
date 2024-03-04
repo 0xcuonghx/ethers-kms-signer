@@ -6,6 +6,12 @@ The @aws-sdk/client-kms integration with ethers@v6 signer
 
 - ethers@v6 signer compatible
 
+## Install
+
+```sh
+npm install @cuonghx.gu-tech/ethers-aws-kms-signer
+```
+
 ## Usage
 
 ```javascript

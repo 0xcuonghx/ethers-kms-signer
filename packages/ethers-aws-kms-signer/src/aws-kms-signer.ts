@@ -86,7 +86,7 @@ export class AwsKmsSigner<
 
   async signTransaction(tx: TransactionRequest): Promise<string> {
     // Replace any Addressable or ENS name with an address
-    const { to, from } = await resolveProperties({
+    const { to } = await resolveProperties({
       to: tx.to ? resolveAddress(tx.to, this.provider) : undefined,
       from: tx.from ? resolveAddress(tx.from, this.provider) : undefined,
     });
@@ -94,9 +94,10 @@ export class AwsKmsSigner<
     if (to !== null) {
       tx.to = to;
     }
-    if (from !== null) {
-      tx.from = from;
-    }
+    // TypeError: Cannot set property from of #<Transaction> which has only a getter
+    // if (from !== null) {
+    //   tx.from = from;
+    // }
 
     const address = await this.getAddress();
 
