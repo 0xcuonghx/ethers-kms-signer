@@ -1,45 +1,45 @@
 import {
+  GetPublicKeyCommand,
+  KMSClient,
+  SignCommand,
+} from "@aws-sdk/client-kms";
+import { ECDSASigValue } from "@peculiar/asn1-ecc";
+import { AsnConvert } from "@peculiar/asn1-schema";
+import { SubjectPublicKeyInfo } from "@peculiar/asn1-x509";
+import {
   AbstractSigner,
+  assert,
+  assertArgument,
   BytesLike,
+  dataLength,
+  getAddress,
+  getBytes,
+  hashMessage,
+  keccak256,
   N as secp256k1N,
   Provider,
+  recoverAddress as recoverAddressFn,
+  resolveAddress,
+  resolveProperties,
   Signature,
+  toBeHex,
+  toBigInt,
   Transaction,
   TransactionLike,
   TransactionRequest,
   TypedDataDomain,
   TypedDataEncoder,
   TypedDataField,
-  assert,
-  assertArgument,
-  dataLength,
-  getAddress,
-  getBytes,
-  hashMessage,
-  keccak256,
-  resolveAddress,
-  resolveProperties,
-  toBeHex,
-  toBigInt,
-  recoverAddress as recoverAddressFn,
 } from "ethers";
-import {
-  GetPublicKeyCommand,
-  KMSClient,
-  SignCommand,
-} from "@aws-sdk/client-kms";
-import { AsnConvert } from "@peculiar/asn1-schema";
-import { SubjectPublicKeyInfo } from "@peculiar/asn1-x509";
-import { ECDSASigValue } from "@peculiar/asn1-ecc";
 
-export interface EthersKmsSignerConfig {
+export type EthersKmsSignerConfig = {
   credentials?: {
     accessKeyId: string;
     secretAccessKey: string;
   };
   region: string;
   keyId: string;
-}
+};
 
 export class AwsKmsSigner<
   P extends null | Provider = null | Provider
@@ -70,7 +70,7 @@ export class AwsKmsSigner<
       }
 
       const ecPublicKey = AsnConvert.parse(
-        Buffer.from(publicKeyHex.toString(), "hex"),
+        Buffer.from(publicKeyHex),
         SubjectPublicKeyInfo
       ).subjectPublicKey;
 
@@ -102,7 +102,7 @@ export class AwsKmsSigner<
 
     if (tx.from != null) {
       assertArgument(
-        getAddress(<string>tx.from) === address,
+        getAddress(tx.from as string) === address,
         "transaction from address mismatch",
         "tx.from",
         tx.from
@@ -111,7 +111,7 @@ export class AwsKmsSigner<
     }
 
     // Build the transaction
-    const btx = Transaction.from(<TransactionLike<string>>tx);
+    const btx = Transaction.from(tx as TransactionLike<string>);
     btx.signature = await this._sign(btx.unsignedHash);
 
     return btx.serialized;
@@ -198,12 +198,12 @@ export class AwsKmsSigner<
     }
 
     const signature = AsnConvert.parse(
-      Buffer.from(signatureHex.toString(), "hex"),
+      Buffer.from(signatureHex),
       ECDSASigValue
     );
 
-    let s = toBigInt(new Uint8Array(signature.r));
-    s = s > secp256k1N ? secp256k1N - s : s;
+    let s = toBigInt(new Uint8Array(signature.s));
+    s = s > secp256k1N / BigInt(2) ? secp256k1N - s : s;
 
     const recoverAddress = recoverAddressFn(digest, {
       r: toBeHex(toBigInt(new Uint8Array(signature.r)), 32),
@@ -212,6 +212,7 @@ export class AwsKmsSigner<
     });
 
     const address = await this.getAddress();
+
     return Signature.from({
       r: toBeHex(toBigInt(new Uint8Array(signature.r)), 32),
       s: toBeHex(s, 32),
