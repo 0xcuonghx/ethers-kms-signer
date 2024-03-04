@@ -10,7 +10,8 @@
   ],
   "scripts": {
     "eslint": "eslint ./",
-    "test": "ts-mocha --files -r tsconfig-paths/register test/*.spec.ts"
+    "test": "ts-mocha --files -r tsconfig-paths/register test/*.spec.ts",
+    "build": "tsc"
   },
   "repository": {
     "type": "git",

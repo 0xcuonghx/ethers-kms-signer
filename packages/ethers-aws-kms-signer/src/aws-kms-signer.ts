@@ -32,7 +32,7 @@ import {
   TypedDataField,
 } from "ethers";
 
-export type EthersKmsSignerConfig = {
+export type EthersAwsKmsSignerConfig = {
   credentials?: {
     accessKeyId: string;
     secretAccessKey: string;
@@ -44,12 +44,12 @@ export type EthersKmsSignerConfig = {
 export class AwsKmsSigner<
   P extends null | Provider = null | Provider
 > extends AbstractSigner {
-  private config: EthersKmsSignerConfig;
+  private config: EthersAwsKmsSignerConfig;
   private client: KMSClient;
 
   address!: string;
 
-  constructor(config: EthersKmsSignerConfig, provider?: P) {
+  constructor(config: EthersAwsKmsSignerConfig, provider?: P) {
     super(provider);
     this.config = config;
     this.client = this._createKMSClient(config.region, config.credentials);
@@ -91,16 +91,16 @@ export class AwsKmsSigner<
       from: tx.from ? resolveAddress(tx.from, this.provider) : undefined,
     });
 
-    if (to != null) {
+    if (to !== null) {
       tx.to = to;
     }
-    if (from != null) {
+    if (from !== null) {
       tx.from = from;
     }
 
     const address = await this.getAddress();
 
-    if (tx.from != null) {
+    if (tx.from !== null) {
       assertArgument(
         getAddress(tx.from as string) === address,
         "transaction from address mismatch",
@@ -137,7 +137,7 @@ export class AwsKmsSigner<
         //        need a provider
 
         assert(
-          this.provider != null,
+          this.provider !== null,
           "cannot resolve ENS names without a provider",
           "UNSUPPORTED_OPERATION",
           {
@@ -147,7 +147,7 @@ export class AwsKmsSigner<
         );
 
         const address = await this.provider.resolveName(name);
-        assert(address != null, "unconfigured ENS name", "UNCONFIGURED_NAME", {
+        assert(address !== null, "unconfigured ENS name", "UNCONFIGURED_NAME", {
           value: name,
         });
 
