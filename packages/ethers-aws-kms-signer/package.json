@@ -1,5 +1,5 @@
 {
-  "name": "@0xcuonghx/ethers-aws-kms-signer",
+  "name": "@cuonghx.gu-tech/ethers-aws-kms-signer",
   "version": "0.9.0",
   "description": "The @aws-sdk/client-kms integration with ethers@v6 signer",
   "main": "dist/src/index.js",
