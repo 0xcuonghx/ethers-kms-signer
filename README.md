@@ -1,2 +1,4 @@
 - [x] ethers-aws-kms-signer
-- [ ] hardhat-aws-kms-signer-plugin
+- [ ] ethers-gcp-kms-signer
+- [x] hardhat-aws-kms-signer-plugin
+- [ ] hardhat-gcp-kms-signer-plugin
