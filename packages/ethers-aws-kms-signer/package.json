@@ -54,6 +54,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.523.0",
+    "@aws-sdk/credential-providers": "^3.549.0",
     "@peculiar/asn1-ecc": "^2.3.8",
     "@peculiar/asn1-schema": "^2.3.8",
     "@peculiar/asn1-x509": "^2.3.8",
