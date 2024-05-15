@@ -1,0 +1,11 @@
+node_modules
+dist
+
+### macOS ###
+# General
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Ignores the whole .idea folder and all .iml files
+.idea/
