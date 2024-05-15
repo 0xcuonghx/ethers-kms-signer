@@ -1,3 +1,4 @@
+/* eslint-disable import/no-extraneous-dependencies */
 import {
   GetPublicKeyCommand,
   KMSClient,
@@ -6,6 +7,10 @@ import {
 import { ECDSASigValue } from "@peculiar/asn1-ecc";
 import { AsnConvert } from "@peculiar/asn1-schema";
 import { SubjectPublicKeyInfo } from "@peculiar/asn1-x509";
+import {
+  AwsCredentialIdentity,
+  AwsCredentialIdentityProvider,
+} from "@smithy/types";
 import {
   AbstractSigner,
   assert,
@@ -33,10 +38,7 @@ import {
 } from "ethers";
 
 export type EthersAwsKmsSignerConfig = {
-  credentials?: {
-    accessKeyId: string;
-    secretAccessKey: string;
-  };
+  credentials: AwsCredentialIdentityProvider | AwsCredentialIdentity;
   region: string;
   keyId: string;
 };
@@ -165,15 +167,9 @@ export class AwsKmsSigner<
 
   private _createKMSClient(
     region: string,
-    credentials?: {
-      accessKeyId: string;
-      secretAccessKey: string;
-    }
+    credentials: AwsCredentialIdentityProvider | AwsCredentialIdentity
   ) {
-    return new KMSClient({
-      credentials,
-      region,
-    });
+    return new KMSClient({ region, credentials });
   }
 
   private async _sign(digest: BytesLike): Promise<Signature> {
