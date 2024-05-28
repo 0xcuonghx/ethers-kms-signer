@@ -25,7 +25,7 @@ module.exports = {
   rules: {
     "eslint-comments/disable-enable-pair": "off",
     "eslint-comments/no-unused-disable": "error",
-    eqeqeq: "error",
+    eqeqeq: "off",
     "import/no-duplicates": "error",
     "import/no-extraneous-dependencies": "error",
     "no-restricted-globals": [

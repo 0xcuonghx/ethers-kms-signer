@@ -88,22 +88,21 @@ export class AwsKmsSigner<
 
   async signTransaction(tx: TransactionRequest): Promise<string> {
     // Replace any Addressable or ENS name with an address
-    const { to } = await resolveProperties({
+    const { to, from } = await resolveProperties({
       to: tx.to ? resolveAddress(tx.to, this.provider) : undefined,
       from: tx.from ? resolveAddress(tx.from, this.provider) : undefined,
     });
 
-    if (to !== null) {
+    if (to != null) {
       tx.to = to;
     }
-    // TypeError: Cannot set property from of #<Transaction> which has only a getter
-    // if (from !== null) {
-    //   tx.from = from;
-    // }
+    if (from != null) {
+      tx.from = from;
+    }
 
     const address = await this.getAddress();
 
-    if (tx.from !== null) {
+    if (tx.from != null) {
       assertArgument(
         getAddress(tx.from as string) === address,
         "transaction from address mismatch",
@@ -140,7 +139,7 @@ export class AwsKmsSigner<
         //        need a provider
 
         assert(
-          this.provider !== null,
+          this.provider != null,
           "cannot resolve ENS names without a provider",
           "UNSUPPORTED_OPERATION",
           {
@@ -150,7 +149,7 @@ export class AwsKmsSigner<
         );
 
         const address = await this.provider.resolveName(name);
-        assert(address !== null, "unconfigured ENS name", "UNCONFIGURED_NAME", {
+        assert(address != null, "unconfigured ENS name", "UNCONFIGURED_NAME", {
           value: name,
         });
 
