@@ -2,7 +2,7 @@ import { expect } from "chai";
 import dotenv from "dotenv";
 
 import { AwsKmsSigner } from "../src/aws-kms-signer";
-import { recoverAddress, solidityPackedKeccak256 } from "ethers";
+import { ethers, recoverAddress, solidityPackedKeccak256 } from "ethers";
 
 dotenv.config();
 
@@ -42,5 +42,15 @@ context("AwsKmsSigner", () => {
     expect(recoveredAddress.toLowerCase()).to.equal(
       publicAddress.toLowerCase()
     );
+  });
+
+  it("should send a signed transaction using KMS signer", async () => {
+    const provider = new ethers.JsonRpcProvider(process.env.TEST_RPC_URL);
+    const connectedSigner = signer.connect(provider);
+    const tx = await connectedSigner.sendTransaction({
+      to: "0xBac8ECdbc45A50d3bda7246bB2AA64Fc449C7924",
+      value: ethers.parseEther("0.001"),
+    });
+    await tx.wait();
   });
 });

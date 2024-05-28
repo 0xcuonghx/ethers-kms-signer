@@ -2,7 +2,7 @@ import { expect } from "chai";
 import dotenv from "dotenv";
 
 import { GcpKmsSigner } from "../src/gcp-kms-signer";
-import { recoverAddress, solidityPackedKeccak256 } from "ethers";
+import { ethers, recoverAddress, solidityPackedKeccak256 } from "ethers";
 
 dotenv.config();
 
@@ -11,11 +11,11 @@ context("GcpKmsSigner", () => {
 
   beforeEach(() => {
     signer = new GcpKmsSigner({
-      projectId: "safe-global-dev-405001",
-      locationId: "northamerica-northeast1",
-      keyRingId: "test",
-      keyId: "test-key-name-3",
-      versionId: "1",
+      projectId: process.env.TEST_GCP_PROJECT_ID!,
+      locationId: process.env.TEST_GCP_LOCATION_ID!,
+      keyRingId: process.env.TEST_GCP_KEYRING_ID!,
+      keyId: process.env.TEST_GCP_KEY_ID!,
+      versionId: process.env.TEST_GCP_VERSION_ID!,
     });
   });
 
@@ -41,5 +41,15 @@ context("GcpKmsSigner", () => {
     expect(recoveredAddress.toLowerCase()).to.equal(
       publicAddress.toLowerCase()
     );
+  });
+
+  it("should send a signed transaction using KMS signer", async () => {
+    const provider = new ethers.JsonRpcProvider(process.env.TEST_RPC_URL);
+    const connectedSigner = signer.connect(provider);
+    const tx = await connectedSigner.sendTransaction({
+      to: "0xBac8ECdbc45A50d3bda7246bB2AA64Fc449C7924",
+      value: ethers.parseEther("0.001"),
+    });
+    await tx.wait();
   });
 });
