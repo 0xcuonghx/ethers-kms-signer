@@ -27,12 +27,10 @@ import {
   TypedDataEncoder,
   TypedDataField,
 } from "ethers";
+import { ClientOptions } from "google-gax";
 
 export type EthersGcpKmsSignerConfig = {
-  credentials?: {
-    client_email: string;
-    private_key: string;
-  };
+  clientOptions?: ClientOptions;
   projectId: string;
   locationId: string;
   keyRingId: string;
@@ -51,7 +49,7 @@ export class GcpKmsSigner<
   constructor(config: EthersGcpKmsSignerConfig, provider?: P) {
     super(provider);
     this.config = config;
-    this.client = this._createKMSClient(config.credentials);
+    this.client = this._createKMSClient(config.clientOptions);
     this.versionName = this.client.cryptoKeyVersionPath(
       config.projectId,
       config.locationId,
@@ -177,11 +175,8 @@ export class GcpKmsSigner<
     return signature.serialized;
   }
 
-  private _createKMSClient(credentials?: {
-    client_email: string;
-    private_key: string;
-  }) {
-    return new KeyManagementServiceClient({ credentials });
+  private _createKMSClient(opts?: ClientOptions) {
+    return new KeyManagementServiceClient(opts);
   }
 
   private async _sign(digest: BytesLike): Promise<Signature> {
